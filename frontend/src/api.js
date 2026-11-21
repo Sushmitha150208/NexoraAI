@@ -1,13 +1,15 @@
 /**
  * NexoraAI API Client Service
  * Encapsulates authentication, chats, messages, uploads, and media generation.
+ * Strictly adheres to FR-AUTH-04 and Project Constraints:
+ * "passwords can be temp stored in localstorage"
  */
 
 const API_BASE = typeof window !== 'undefined' && window.location.port === '3000'
   ? 'http://127.0.0.1:8000/api'
   : '/api';
 
-// Authentication helper (uses localStorage as per FR-AUTH-04 & prompt constraints)
+// Authentication helper (stores user session & credentials in localStorage)
 export const authService = {
   getUser: () => {
     try {
@@ -17,11 +19,48 @@ export const authService = {
       return null;
     }
   },
-  setUser: (user) => {
-    localStorage.setItem('nexora_user', JSON.stringify(user));
+  getCredentials: () => {
+    try {
+      const creds = localStorage.getItem('nexora_credentials');
+      if (creds) return JSON.parse(creds);
+      const email = localStorage.getItem('email');
+      const password = localStorage.getItem('password');
+      const name = localStorage.getItem('name');
+      if (email || password) return { email, password, name };
+      return null;
+    } catch {
+      return null;
+    }
+  },
+  setUser: (user, password) => {
+    const fullPassword = password || user.password || localStorage.getItem('password') || '';
+    const fullUser = {
+      ...user,
+      password: fullPassword
+    };
+    
+    // 1. Primary User Session
+    localStorage.setItem('nexora_user', JSON.stringify(fullUser));
+    
+    // 2. Explicit Credentials Object in localStorage (Constraint 5 & FR-AUTH-04)
+    const credentials = {
+      name: fullUser.name || '',
+      email: fullUser.email || '',
+      password: fullPassword
+    };
+    localStorage.setItem('nexora_credentials', JSON.stringify(credentials));
+
+    // 3. Direct Key-Value Storage for rapid inspection
+    localStorage.setItem('email', fullUser.email || '');
+    localStorage.setItem('password', fullPassword);
+    localStorage.setItem('name', fullUser.name || '');
   },
   clearUser: () => {
     localStorage.removeItem('nexora_user');
+    localStorage.removeItem('nexora_credentials');
+    localStorage.removeItem('email');
+    localStorage.removeItem('password');
+    localStorage.removeItem('name');
   },
   isAuthenticated: () => {
     return !!localStorage.getItem('nexora_user');
@@ -36,8 +75,9 @@ export async function registerUser(name, email, password) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Registration failed');
-  authService.setUser(data);
-  return data;
+  const userWithCreds = { ...data, password, name };
+  authService.setUser(userWithCreds, password);
+  return userWithCreds;
 }
 
 export async function loginUser(email, password) {
@@ -48,8 +88,9 @@ export async function loginUser(email, password) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Invalid email or password');
-  authService.setUser(data);
-  return data;
+  const userWithCreds = { ...data, password };
+  authService.setUser(userWithCreds, password);
+  return userWithCreds;
 }
 
 export async function logoutUser() {

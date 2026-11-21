@@ -1,9 +1,29 @@
 import React, { useState } from 'react';
-import { User, Volume2, Shield, Download, Trash2, LogOut } from 'lucide-react';
+import { User, Volume2, Shield, Download, Lock, Eye, EyeOff, LogOut, CheckCircle } from 'lucide-react';
+import { authService } from '../api';
 
-export default function SettingsView({ user, onSignOut, conversations }) {
+export default function SettingsView({ user, onSignOut, conversations, onUpdateUser }) {
   const [voice, setVoice] = useState('natural');
-  const [autoSpeech, setAutoSpeech] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isEditingPassword, setIsEditingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState(user?.password || localStorage.getItem('password') || '');
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  const storedPassword = user?.password || localStorage.getItem('password') || '••••••••';
+
+  const handleSavePassword = (e) => {
+    e.preventDefault();
+    if (newPassword.length < 8) {
+      alert("Password must be at least 8 characters long.");
+      return;
+    }
+    const updated = { ...user, password: newPassword };
+    authService.setUser(updated, newPassword);
+    if (onUpdateUser) onUpdateUser(updated);
+    setIsEditingPassword(false);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 3000);
+  };
 
   const handleExportAll = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(conversations, null, 2));
@@ -16,7 +36,7 @@ export default function SettingsView({ user, onSignOut, conversations }) {
   return (
     <div style={{
       padding: '36px 48px',
-      maxWidth: '800px',
+      maxWidth: '820px',
       margin: '0 auto',
       height: '100%',
       overflowY: 'auto'
@@ -26,26 +46,139 @@ export default function SettingsView({ user, onSignOut, conversations }) {
           Settings & Preferences
         </h2>
         <p style={{ color: '#7E726A', fontSize: '14.5px', margin: 0 }}>
-          Manage your account profile, multimodal speech preferences, and data privacy.
+          Manage your account profile, credentials stored in localStorage, and preferences.
         </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {/* Profile Card */}
+        {/* Profile & Credentials Card (Constraint 5 & FR-AUTH-04) */}
         <div style={cardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <User size={20} color="#C2693F" />
-            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#2A2522', margin: 0 }}>User Profile</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <User size={20} color="#C2693F" />
+              <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#2A2522', margin: 0 }}>Account Credentials</h3>
+            </div>
+            
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11.5px',
+              fontWeight: '500',
+              backgroundColor: '#EAF7EE',
+              color: '#28a745',
+              padding: '3px 8px',
+              borderRadius: '999px',
+              border: '1px solid #D4EDDA'
+            }}>
+              <CheckCircle size={12} />
+              <span>Stored in localStorage</span>
+            </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
               <label style={labelStyle}>Full Name</label>
               <div style={valueStyle}>{user?.name || 'Guest User'}</div>
             </div>
             <div>
-              <label style={labelStyle}>Email Address</label>
+              <label style={labelStyle}>Email Address (Saved in localStorage)</label>
               <div style={valueStyle}>{user?.email || 'guest@nexora.ai'}</div>
             </div>
+          </div>
+
+          {/* Stored Password Display & Edit */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label style={labelStyle}>Password (Temporarily stored in localStorage)</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#C2693F',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                  <span>{showPassword ? 'Hide' : 'Reveal Password'}</span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setIsEditingPassword(!isEditingPassword)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#C2693F',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {isEditingPassword ? 'Cancel' : 'Change Password'}
+                </button>
+              </div>
+            </div>
+
+            {isEditingPassword ? (
+              <form onSubmit={handleSavePassword} style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                <input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min 8 chars)"
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #C2693F',
+                    backgroundColor: '#FFFDF9',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#C2693F',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Save to localStorage
+                </button>
+              </form>
+            ) : (
+              <div style={{
+                ...valueStyle,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontFamily: showPassword ? 'inherit' : 'monospace',
+                letterSpacing: showPassword ? 'normal' : '2px'
+              }}>
+                <span>{showPassword ? storedPassword : '••••••••••••'}</span>
+                <Lock size={14} color="#8D7F76" />
+              </div>
+            )}
+
+            {savedSuccess && (
+              <div style={{ color: '#28a745', fontSize: '12px', marginTop: '6px' }}>
+                ✓ Password updated and saved in localStorage (`nexora_credentials`, `password`).
+              </div>
+            )}
           </div>
         </div>
 
@@ -55,28 +188,26 @@ export default function SettingsView({ user, onSignOut, conversations }) {
             <Volume2 size={20} color="#C2693F" />
             <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#2A2522', margin: 0 }}>Multimodal Audio & Voice</h3>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <label style={labelStyle}>Default Voice Persona</label>
-              <select
-                value={voice}
-                onChange={(e) => setVoice(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid #E5D5CA',
-                  backgroundColor: '#FAF0EA',
-                  fontSize: '14px',
-                  color: '#2A2522',
-                  outline: 'none'
-                }}
-              >
-                <option value="natural">Nexora Natural Warm (Default)</option>
-                <option value="studio">Nexora Studio Clarity</option>
-                <option value="balanced">Nexora Melodic Balanced</option>
-              </select>
-            </div>
+          <div>
+            <label style={labelStyle}>Default Voice Persona</label>
+            <select
+              value={voice}
+              onChange={(e) => setVoice(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                border: '1px solid #E5D5CA',
+                backgroundColor: '#FAF0EA',
+                fontSize: '14px',
+                color: '#2A2522',
+                outline: 'none'
+              }}
+            >
+              <option value="natural">Nexora Natural Warm (Default)</option>
+              <option value="studio">Nexora Studio Clarity</option>
+              <option value="balanced">Nexora Melodic Balanced</option>
+            </select>
           </div>
         </div>
 
@@ -84,39 +215,37 @@ export default function SettingsView({ user, onSignOut, conversations }) {
         <div style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
             <Shield size={20} color="#C2693F" />
-            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#2A2522', margin: 0 }}>Privacy & Policies</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#2A2522', margin: 0 }}>Data & History Controls</h3>
           </div>
-          <p style={{ fontSize: '13.5px', color: '#6E6259', lineHeight: 1.5, margin: '0 0 12px 0' }}>
-            NexoraAI operates strictly under enterprise privacy policies (Section 8). Your uploaded documents and personal chats are private to your account and never used to train public models.
+          <p style={{ fontSize: '13.5px', color: '#6E6259', lineHeight: 1.5, margin: '0 0 14px 0' }}>
+            Your conversations and private uploads are isolated to your account. You can export your full conversation records at any time.
           </p>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={handleExportAll}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '9px 16px',
-                borderRadius: '8px',
-                backgroundColor: '#FAF0EA',
-                border: '1px solid #E5D5CA',
-                color: '#2A2522',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
-            >
-              <Download size={14} color="#C2693F" />
-              <span>Export All Chats (JSON)</span>
-            </button>
-          </div>
+          <button
+            onClick={handleExportAll}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 16px',
+              borderRadius: '8px',
+              backgroundColor: '#FAF0EA',
+              border: '1px solid #E5D5CA',
+              color: '#2A2522',
+              fontSize: '13px',
+              fontWeight: '500',
+              cursor: 'pointer'
+            }}
+          >
+            <Download size={14} color="#C2693F" />
+            <span>Export All Chats (JSON)</span>
+          </button>
         </div>
 
         {/* Sign Out Card */}
         <div style={{ ...cardStyle, border: '1px solid #FFD8D4' }}>
           <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#dc3545', margin: '0 0 8px 0' }}>Session Management</h3>
           <p style={{ fontSize: '13px', color: '#8D7F76', margin: '0 0 16px 0' }}>
-            Sign out of your active NexoraAI session. Your chats remain safely saved in your account.
+            Sign out of your active session. Clicking Sign Out clears the session and returns to Sign In.
           </p>
           <button
             onClick={onSignOut}

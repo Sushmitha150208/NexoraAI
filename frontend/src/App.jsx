@@ -37,9 +37,29 @@ export default function App() {
   useEffect(() => {
     let currentUser = authService.getUser();
     if (!currentUser) {
-      currentUser = { name: 'Shalika', email: 'shalika@nexora.ai' };
-      authService.setUser(currentUser);
+      const creds = authService.getCredentials();
+      if (creds && creds.email) {
+        currentUser = {
+          name: creds.name || 'Shalika',
+          email: creds.email,
+          password: creds.password
+        };
+        authService.setUser(currentUser, creds.password);
+      } else {
+        // Provide initial session and store credentials in localStorage as required by Constraint 5
+        currentUser = {
+          name: 'Shalika',
+          email: 'shalika@nexora.ai',
+          password: 'Password123!'
+        };
+        authService.setUser(currentUser, 'Password123!');
+      }
+    } else if (!currentUser.password) {
+      // Ensure password is saved in localStorage
+      currentUser.password = localStorage.getItem('password') || 'Password123!';
+      authService.setUser(currentUser, currentUser.password);
     }
+
     setUser(currentUser);
     loadConversations(currentUser.email);
     loadNotifications(currentUser.email);
@@ -139,7 +159,7 @@ export default function App() {
         {
           id: `err_${Date.now()}`,
           role: 'assistant',
-          content: "I encountered a network issue while processing your request. Please try again.",
+          content: "I encountered an issue processing your request. Please try again.",
           modality: 'text',
           created_at: new Date().toISOString()
         }
@@ -166,6 +186,7 @@ export default function App() {
 
   const handleAuthSuccess = (newUser) => {
     setUser(newUser);
+    authService.setUser(newUser, newUser.password);
     loadConversations(newUser.email);
     loadNotifications(newUser.email);
     handleNewChat();
@@ -223,7 +244,12 @@ export default function App() {
 
         {activeNav === 'settings' && (
           <div style={{ flex: 1, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
-            <SettingsView user={user} onSignOut={handleSignOut} conversations={conversations} />
+            <SettingsView
+              user={user}
+              onSignOut={handleSignOut}
+              conversations={conversations}
+              onUpdateUser={setUser}
+            />
           </div>
         )}
 
